@@ -33,6 +33,11 @@ IMU imu;
 // Orientation data
 float Gri_roll = 0.0, Gri_pitch = 0.0, Gri_yaw = 0.0;
 
+// Torques received from Servomotors module
+float Torque_roll = 0.0;
+float Torque_pitch = 0.0;
+float Torque_yaw = 0.0;
+
 void connectToWiFi() {
   Serial.print("Connecting to Wi-Fi");
   WiFi.begin(ssid, password);
@@ -79,6 +84,31 @@ void sendOrientationUDP() {
   udp.endPacket();
 }
 
+void receiveTorquesUDP() {
+  int packetSize = udp.parsePacket();
+  if (packetSize) {
+    char incomingPacket[512];
+    int len = udp.read(incomingPacket, 512);
+    if (len > 0) incomingPacket[len] = '\0';
+
+    // Parse JSON
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, incomingPacket);
+    if (!error) {
+      Torque_roll  = doc["Torque_roll"]  | 0.0;
+      Torque_pitch = doc["Torque_pitch"] | 0.0;
+      Torque_yaw   = doc["Torque_yaw"]   | 0.0;
+
+      // Vibration motor control based on torque values
+      float totalTorque = Torque_roll + Torque_pitch + Torque_yaw;
+      int vibrationValue = constrain(totalTorque * 2.5, 0, 255); // Adjust scaling as needed
+      ledcWrite(0, vibrationValue); // Set PWM for vibration motor
+      Serial.print("Vibration motor value: ");
+      Serial.println(vibrationValue);
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -92,10 +122,15 @@ void setup() {
 
   pinMode(PIN_S1, INPUT);
   pinMode(PIN_S2, INPUT);
+
+  // Configure PWM for the vibration motor (channel 0)
+  ledcSetup(0, 5000, 8); // Channel 0, frequency 5kHz, 8-bit resolution
+  ledcAttachPin(vibrationPin, 0); // Attach the vibration motor
 }
 
 void loop() {
   updateOrientation();
   sendOrientationUDP();
+  receiveTorquesUDP(); // Receive torques and drive vibration motor
   delay(10);
 }
