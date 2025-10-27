@@ -44,6 +44,10 @@ float OldValueRoll = 0, OldValuePitch = 0, OldValueYaw = 0;
 float roll = 0, pitch = 0, yaw = 0;
 int s1 = 1, s2 = 1;
 
+// Reference yaw (for independence from North)
+float initialYaw = 0.0;
+bool yawReferenceSet = false;
+
 void connectToWiFi() {
   Serial.print("Connecting to Wi-Fi");
   WiFi.begin(ssid, password);
@@ -115,12 +119,23 @@ float getTorque(float& sum, int analogPin, float& previous) {
 }
 
 void moveServos() {
-  roll = Gri_roll;
-  OldValueRoll = roll;
-  pitch = Gri_pitch;
-  OldValuePitch = pitch;
-  yaw = Gri_yaw;
-  OldValueYaw = yaw;
+  // Set reference yaw on first reading
+  if (!yawReferenceSet) {
+  initialYaw = Gri_yaw;
+  yawReferenceSet = true;
+  Serial.print("Initial Yaw reference set to: ");
+  Serial.println(initialYaw);
+  }
+
+  // Apply angles relative to 90º neutral position
+  float rollCmd = 90 + Gri_roll;
+  float pitchCmd = 90 + Gri_pitch;
+  float yawCmd = 90 + (Gri_yaw - initialYaw);
+
+  // Constrain servo commands to valid range
+  rollCmd = constrain(rollCmd, 0, 180);
+  pitchCmd = constrain(pitchCmd, 0, 180);
+  yawCmd = constrain(yawCmd, 0, 180);
 
   float delta = 0;
   if (s1 == 0) {
@@ -128,10 +143,16 @@ void moveServos() {
     Serial.println("S1 premut → Obrint");
   }
 
-  servo_roll1.write(Gri_roll + delta);
-  servo_roll2.write(180 - Gri_roll);
-  servo_pitch.write(pitch);
-  servo_yaw.write(yaw);
+  // Apply servo positions
+  servo_roll1.write(rollCmd + delta);
+  servo_roll2.write(180 - rollCmd);
+  servo_pitch.write(pitchCmd);
+  servo_yaw.write(yawCmd);
+
+  // Debug info
+  Serial.print("RollCmd: "); Serial.print(rollCmd);
+  Serial.print(" PitchCmd: "); Serial.print(pitchCmd);
+  Serial.print(" YawCmd: "); Serial.println(yawCmd);
 }
 
 void setup() {
@@ -167,10 +188,47 @@ void setup() {
   servo_pitch.write(90);
   servo_roll1.write(90);
   servo_roll2.write(90);
+
+  Serial.println("Servos initialized to 90º neutral position");
+
 }
+
+
 
 void loop() {
   receiveOrientationUDP();
   moveServos();
-  delay(10);
+  // Read torques
+  Torque_roll1 = getTorque(sumRoll1, PIN_ANALOG_ROLL1, prevRoll1);
+  Torque_roll2 = getTorque(sumRoll2, PIN_ANALOG_ROLL2, prevRoll2);
+  Torque_pitch = getTorque(sumPitch, PIN_ANALOG_PITCH, prevPitch);
+  Torque_yaw = getTorque(sumYaw, PIN_ANALOG_YAW, prevYaw);
+
+  // Prepare JSON payload
+  JsonDocument doc;
+  doc["device"] = deviceId;
+  doc["Torque_roll1"] = Torque_roll1;
+  doc["Torque_roll2"] = Torque_roll2;
+  doc["Torque_pitch"] = Torque_pitch;
+  doc["Torque_yaw"] = Torque_yaw;
+
+  char buffer[256];
+  size_t n = serializeJson(doc, buffer);
+
+  // Send to gripper ESP32
+  udp.beginPacket(receiverESP32IP, udpPort);
+  udp.write((uint8_t*)buffer, n);
+  udp.endPacket();
+
+  // Send to computer
+  udp.beginPacket(receiverComputerIP, udpPort);
+  udp.write((uint8_t*)buffer, n);
+  udp.endPacket();
+
+  // Optional: print torque values to serial
+  Serial.print("Torque R1: "); Serial.print(Torque_roll1);
+  Serial.print(" R2: "); Serial.print(Torque_roll2);
+  Serial.print(" Pitch: "); Serial.print(Torque_pitch);
+  Serial.print(" Yaw: "); Serial.println(Torque_yaw);
+  delay(20);
 }
