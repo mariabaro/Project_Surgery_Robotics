@@ -8,8 +8,12 @@ import socket
 import json
 import os
 
+USE_REAL_UR5 = False   # Set to True if you are controlling a real UR5 robot
+UR5_IP = "192.168.0.100"  # Example IP of the robot
+UR5_PORT = 30002          # Default UR5 socket port
+
 # Define the relative and absolute path to the RoboDK project file
-relative_path = "src/roboDK/SurgeryRobotics.rdk"
+relative_path = "Project_Surgery_Robotics/src/roboDK/SurgeryRobotics.rdk"
 absolute_path = os.path.abspath(relative_path)
 # Constants
 UDP_IP = "0.0.0.0"
@@ -49,7 +53,7 @@ def initialize_robodk(absolute_path):
     needle.setParent(gripper)
     needle.setPose(needle_init)
     robot.setSpeed(50)
-    robot.MoveL(Init_target)
+    #robot.MoveL(Init_target)
     return RDK, robot, base, gripper, needle
 
 # Transformation Endowrist to base
@@ -247,7 +251,7 @@ def main():
     udp_thread.start()
 
     # Start the robot movement thread
-    robot_thread = threading.Thread(target=move_robot, args=(robot, gripper, needle, text_label))
+    robot_thread = threading.Thread(target=move_robot, args=(robot, gripper, needle, text_label, torque_indicator))
     robot_thread.daemon = True
     robot_thread.start()
 
