@@ -46,6 +46,11 @@ def initialize_robodk(absolute_path):
     Init_target = RDK.Item('Init')
     robot.setPoseFrame(base)
     robot.setPoseTool(endowrist)
+    
+    # Definir posición inicial del robot
+    initial_pose = TxyzRxyz_2_Pose([480, -52, 180, -2, -15, 72])
+    robot.MoveL(initial_pose)
+    
     gripper_init = TxyzRxyz_2_Pose([0, 5, -105, 0, 0, 0])
     gripper.setParent(endowrist)
     gripper.setPose(gripper_init)
@@ -53,7 +58,7 @@ def initialize_robodk(absolute_path):
     needle.setParent(gripper)
     needle.setPose(needle_init)
     robot.setSpeed(50)
-    #robot.MoveL(Init_target)
+    
     return RDK, robot, base, gripper, needle
 
 # Transformation Endowrist to base
