@@ -98,6 +98,9 @@ void setup() {
 
   pinMode(PIN_S1, INPUT);
   pinMode(PIN_S2, INPUT);
+
+  ledcSetup(0, 5000, 8); // Channel 0, frequency 5kHz, resolution 8 bits
+  ledcAttachPin(vibrationPin, 0); // Attach the vibration motor to channel 0
 }
 
 void loop() {
