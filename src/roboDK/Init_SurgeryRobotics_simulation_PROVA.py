@@ -49,7 +49,16 @@ def initialize_robodk(absolute_path):
     
     # Definir posición inicial del robot
     initial_pose = TxyzRxyz_2_Pose([480, -52, 180, -2, -15, 72])
-    robot.MoveL(initial_pose)
+    
+    # Verificar si la posición es alcanzable antes de mover
+    if robot.MoveL_Test(robot.Joints(), initial_pose) == 0:
+        robot.MoveL(initial_pose)
+        print("Robot moved to initial position successfully")
+    else:
+        print("WARNING: Initial position [480, -52, 180, -2, -15, 72] is not reachable!")
+        print("Using current robot position as initial position")
+        # Opcionalmente, puedes intentar con el target Init del proyecto
+        # robot.MoveL(Init_target)
     
     gripper_init = TxyzRxyz_2_Pose([0, 5, -105, 0, 0, 0])
     gripper.setParent(endowrist)
