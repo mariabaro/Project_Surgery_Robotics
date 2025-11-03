@@ -5,15 +5,15 @@
 #include <ESP32Servo.h>
 
 // Device ID
-const char *deviceId = "G3_Servos";
+const char *deviceId = "G4_Servos";
 
 // Wi-Fi credentials
 const char *ssid = "Robotics_UB";
 const char *password = "rUBot_xx";
 
 // UDP settings
-IPAddress receiverESP32IP(192, 168, 1, 31);
-IPAddress receiverComputerIP(192, 168, 1, 35);
+IPAddress receiverESP32IP(192, 168, 1, 41);
+IPAddress receiverComputerIP(192, 168, 1, 45);
 const int udpPort = 12345;
 WiFiUDP udp;
 
@@ -43,11 +43,12 @@ float sumRoll1 = 0, sumRoll2 = 0, sumPitch = 0, sumYaw = 0;
 float OldValueRoll = 0, OldValuePitch = 0, OldValueYaw = 0;
 float roll = 0, pitch = 0, yaw = 0;
 int s1 = 1, s2 = 1;
+float referenceYaw;
+float incrementYaw;
+boolean firstTime = true;
+float currentYawServo;
 
-// Reference yaw (for independence from North)
-float initialYaw = 0.0;
-bool yawReferenceSet = false;
-
+// Function to connect to Wi-Fi
 void connectToWiFi() {
   Serial.print("Connecting to Wi-Fi");
   WiFi.begin(ssid, password);
@@ -61,6 +62,7 @@ void connectToWiFi() {
   Serial.println(WiFi.macAddress());
 }
 
+// Function to receive orientation data via UDP
 void receiveOrientationUDP() {
   int packetSize = udp.parsePacket();
   if (packetSize) {
@@ -82,7 +84,7 @@ void receiveOrientationUDP() {
       }
 
       const char* device = doc["device"];
-      if (strcmp(device, "G5_Gri") == 0) {
+      if (strcmp(device, "G4_Gri") == 0) {
         Gri_roll = round(doc["roll"].as<float>());
         Gri_pitch = round(doc["pitch"].as<float>());
         Gri_yaw = round(doc["yaw"].as<float>());
@@ -100,6 +102,7 @@ void receiveOrientationUDP() {
   }
 }
 
+// Function to get current from analog pin, that will be used to get torque from servos
 float getCurrent(uint32_t integrationTimeMs, int pin) {
   uint32_t startTime = millis();
   float integratedCurrent = 0;
@@ -110,6 +113,7 @@ float getCurrent(uint32_t integrationTimeMs, int pin) {
   return integratedCurrent;
 }
 
+// Function to get torque based on current readings
 float getTorque(float& sum, int analogPin, float& previous) {
   float current = getCurrent(20, analogPin);
   sum += current;
@@ -118,43 +122,100 @@ float getTorque(float& sum, int analogPin, float& previous) {
   return diff;
 }
 
+// Function to move servos based on received orientation data
 void moveServos() {
-  // Set reference yaw on first reading
-  if (!yawReferenceSet) {
-  initialYaw = Gri_yaw;
-  yawReferenceSet = true;
-  Serial.print("Initial Yaw reference set to: ");
-  Serial.println(initialYaw);
-  }
-
-  // Apply angles relative to 90º neutral position
-  float rollCmd = 90 + Gri_roll;
-  float pitchCmd = 90 + Gri_pitch;
-  float yawCmd = 90 + (Gri_yaw - initialYaw);
-
-  // Constrain servo commands to valid range
-  rollCmd = constrain(rollCmd, 0, 180);
-  pitchCmd = constrain(pitchCmd, 0, 180);
-  yawCmd = constrain(yawCmd, 0, 180);
-
   float delta = 0;
   if (s1 == 0) {
     delta = 40;
     Serial.println("S1 premut → Obrint");
   }
 
-  // Apply servo positions
-  servo_roll1.write(rollCmd + delta);
-  servo_roll2.write(180 - rollCmd);
-  servo_pitch.write(pitchCmd);
-  servo_yaw.write(yawCmd);
+// Apply Roll
+if (Gri_roll >= 270 && Gri_roll <= 360){
+    int rollServo1 = constrain(90 + Gri_roll - 360 + delta, 0, 180);
+    int rollServo2 = constrain(90 - Gri_roll + 360, 0, 180);
+    servo_roll1.write(rollServo1);
+    servo_roll2.write(rollServo2);
+  }
 
-  // Debug info
-  Serial.print("RollCmd: "); Serial.print(rollCmd);
-  Serial.print(" PitchCmd: "); Serial.print(pitchCmd);
-  Serial.print(" YawCmd: "); Serial.println(yawCmd);
+  else {
+    int rollServo1 = constrain(90 + Gri_roll + delta, 0, 180);
+    int rollServo2 = constrain(90 - Gri_roll, 0, 180);
+    servo_roll1.write(rollServo1);
+    servo_roll2.write(rollServo2);
+  }
+
+  // Apply Pitch
+  int pitchServo = constrain(90 + Gri_pitch, 0, 180);
+  servo_pitch.write(pitchServo);
+
+  // --- Apply Yaw ---
+  if (firstTime) {
+    referenceYaw = Gri_yaw;   // Initial reference from IMU
+    currentYawServo = 90;     // Neutral position
+    servo_yaw.write(currentYawServo);
+    firstTime = false;
+  } else {
+    // Compute angular difference (handle wrap-around)
+    float deltaYaw = Gri_yaw - referenceYaw;
+    if (deltaYaw > 180)  deltaYaw -= 360;
+    if (deltaYaw < -180) deltaYaw += 360;
+
+    // Apply incremental movement
+    currentYawServo += deltaYaw;
+
+    // Constrain to servo range
+    currentYawServo = constrain(currentYawServo, 0, 180);
+
+    // Move the servo
+    servo_yaw.write(currentYawServo);
+
+    // Update reference for next iteration
+    referenceYaw = Gri_yaw;
+  }
+
 }
 
+// Function to update torque readings
+void updateTorques() {
+  Torque_roll1 = getTorque(sumRoll1, PIN_ANALOG_ROLL1, prevRoll1);
+  Torque_roll2 = getTorque(sumRoll2, PIN_ANALOG_ROLL2, prevRoll2);
+  Torque_pitch = getTorque(sumPitch, PIN_ANALOG_PITCH, prevPitch);
+  Torque_yaw   = getTorque(sumYaw, PIN_ANALOG_YAW, prevYaw);
+
+  Serial.print("Torques → Roll1: "); Serial.print(Torque_roll1, 3);
+  Serial.print(" Roll2: "); Serial.print(Torque_roll2, 3);
+  Serial.print(" Pitch: "); Serial.print(Torque_pitch, 3);
+  Serial.print(" Yaw: "); Serial.println(Torque_yaw, 3);
+}
+
+// Function to send torque data via UDP
+void sendTorquesUDP() {
+  // Build JSON payload
+  JsonDocument doc;
+  doc["device"] = deviceId;
+  doc["Torque_roll1"] = Torque_roll1;
+  doc["Torque_roll2"] = Torque_roll2;
+  doc["Torque_pitch"] = Torque_pitch;
+  doc["Torque_yaw"]   = Torque_yaw;
+
+  char jsonBuffer[256];
+  size_t len = serializeJson(doc, jsonBuffer);
+
+  // Send to gripper ESP32
+  udp.beginPacket(receiverESP32IP, udpPort);
+  udp.write((uint8_t*)jsonBuffer, len);
+  udp.endPacket();
+
+  // Send to computer
+  udp.beginPacket(receiverComputerIP, udpPort);
+  udp.write((uint8_t*)jsonBuffer, len);
+  udp.endPacket();
+
+  Serial.println("Sent torque data to gripper and PC.");
+}
+
+// Setup function
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -164,16 +225,19 @@ void setup() {
   udp.begin(udpPort);
   Serial.println("UDP initialized");
 
+  // Configure the PWM that will control the servos
   ESP32PWM::allocateTimer(0);
   ESP32PWM::allocateTimer(1);
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
 
+  // Set a frequency to the servos
   servo_yaw.setPeriodHertz(50);
   servo_pitch.setPeriodHertz(50);
   servo_roll1.setPeriodHertz(50);
   servo_roll2.setPeriodHertz(50);
 
+  // Attach servos to their signal pins
   servo_yaw.attach(PIN_SIGNAL_YAW);
   servo_pitch.attach(PIN_SIGNAL_PITCH);
   servo_roll1.attach(PIN_SIGNAL_ROLL1);
@@ -188,47 +252,13 @@ void setup() {
   servo_pitch.write(90);
   servo_roll1.write(90);
   servo_roll2.write(90);
-
-  Serial.println("Servos initialized to 90º neutral position");
-
 }
 
-
-
+// Loop function
 void loop() {
-  receiveOrientationUDP();
-  moveServos();
-  // Read torques
-  Torque_roll1 = getTorque(sumRoll1, PIN_ANALOG_ROLL1, prevRoll1);
-  Torque_roll2 = getTorque(sumRoll2, PIN_ANALOG_ROLL2, prevRoll2);
-  Torque_pitch = getTorque(sumPitch, PIN_ANALOG_PITCH, prevPitch);
-  Torque_yaw = getTorque(sumYaw, PIN_ANALOG_YAW, prevYaw);
-
-  // Prepare JSON payload
-  JsonDocument doc;
-  doc["device"] = deviceId;
-  doc["Torque_roll1"] = Torque_roll1;
-  doc["Torque_roll2"] = Torque_roll2;
-  doc["Torque_pitch"] = Torque_pitch;
-  doc["Torque_yaw"] = Torque_yaw;
-
-  char buffer[256];
-  size_t n = serializeJson(doc, buffer);
-
-  // Send to gripper ESP32
-  udp.beginPacket(receiverESP32IP, udpPort);
-  udp.write((uint8_t*)buffer, n);
-  udp.endPacket();
-
-  // Send to computer
-  udp.beginPacket(receiverComputerIP, udpPort);
-  udp.write((uint8_t*)buffer, n);
-  udp.endPacket();
-
-  // Optional: print torque values to serial
-  Serial.print("Torque R1: "); Serial.print(Torque_roll1);
-  Serial.print(" R2: "); Serial.print(Torque_roll2);
-  Serial.print(" Pitch: "); Serial.print(Torque_pitch);
-  Serial.print(" Yaw: "); Serial.println(Torque_yaw);
-  delay(20);
+  receiveOrientationUDP();  // Receive RPY data from G4_Gri
+  moveServos();             // Apply orientation to servos
+  updateTorques();          // Measure current-based torques
+  sendTorquesUDP();         // Send torque values to gripper and PC
+  delay(50);                // Small delay for stability
 }

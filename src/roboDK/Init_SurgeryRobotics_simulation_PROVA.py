@@ -235,6 +235,8 @@ def set_zero_yaw_gripper(value):
 
 # Main function
 def main():
+    current_pose = robot.Pose()
+    print("Current pose:", Pose_2_TxyzRxyz(current_pose))
     global root, ZERO_YAW_TOOL, ZERO_YAW_GRIPPER, robot, gripper, base, text_label, absolute_path
     
     RDK, robot, base, gripper, needle = initialize_robodk(absolute_path)
