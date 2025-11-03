@@ -5,15 +5,15 @@
 #include <ESP32Servo.h>
 
 // Device ID
-const char *deviceId = "G4_Servos";
+const char *deviceId = "G3_Servos";
 
 // Wi-Fi credentials
 const char *ssid = "Robotics_UB";
 const char *password = "rUBot_xx";
 
 // UDP settings
-IPAddress receiverESP32IP(192, 168, 1, 41);
-IPAddress receiverComputerIP(192, 168, 1, 45);
+IPAddress receiverESP32IP(192, 168, 1, 31);
+IPAddress receiverComputerIP(192, 168, 1, 55);
 const int udpPort = 12345;
 WiFiUDP udp;
 
@@ -43,12 +43,12 @@ float sumRoll1 = 0, sumRoll2 = 0, sumPitch = 0, sumYaw = 0;
 float OldValueRoll = 0, OldValuePitch = 0, OldValueYaw = 0;
 float roll = 0, pitch = 0, yaw = 0;
 int s1 = 1, s2 = 1;
+//New variables for yaw control
 float referenceYaw;
 float incrementYaw;
 boolean firstTime = true;
 float currentYawServo;
 
-// Function to connect to Wi-Fi
 void connectToWiFi() {
   Serial.print("Connecting to Wi-Fi");
   WiFi.begin(ssid, password);
@@ -62,7 +62,6 @@ void connectToWiFi() {
   Serial.println(WiFi.macAddress());
 }
 
-// Function to receive orientation data via UDP
 void receiveOrientationUDP() {
   int packetSize = udp.parsePacket();
   if (packetSize) {
@@ -84,7 +83,7 @@ void receiveOrientationUDP() {
       }
 
       const char* device = doc["device"];
-      if (strcmp(device, "G4_Gri") == 0) {
+      if (strcmp(device, "G3_Gri") == 0) {
         Gri_roll = round(doc["roll"].as<float>());
         Gri_pitch = round(doc["pitch"].as<float>());
         Gri_yaw = round(doc["yaw"].as<float>());
@@ -102,7 +101,6 @@ void receiveOrientationUDP() {
   }
 }
 
-// Function to get current from analog pin, that will be used to get torque from servos
 float getCurrent(uint32_t integrationTimeMs, int pin) {
   uint32_t startTime = millis();
   float integratedCurrent = 0;
@@ -113,7 +111,6 @@ float getCurrent(uint32_t integrationTimeMs, int pin) {
   return integratedCurrent;
 }
 
-// Function to get torque based on current readings
 float getTorque(float& sum, int analogPin, float& previous) {
   float current = getCurrent(20, analogPin);
   sum += current;
@@ -122,7 +119,7 @@ float getTorque(float& sum, int analogPin, float& previous) {
   return diff;
 }
 
-// Function to move servos based on received orientation data
+// Modified function, in order to move servos based on received orientation data
 void moveServos() {
   float delta = 0;
   if (s1 == 0) {
@@ -149,14 +146,14 @@ if (Gri_roll >= 270 && Gri_roll <= 360){
   int pitchServo = constrain(90 + Gri_pitch, 0, 180);
   servo_pitch.write(pitchServo);
 
-  // --- Apply Yaw ---
+  // Apply Yaw 
   if (firstTime) {
     referenceYaw = Gri_yaw;   // Initial reference from IMU
     currentYawServo = 90;     // Neutral position
     servo_yaw.write(currentYawServo);
     firstTime = false;
   } else {
-    // Compute angular difference (handle wrap-around)
+    // Compute angular difference
     float deltaYaw = Gri_yaw - referenceYaw;
     if (deltaYaw > 180)  deltaYaw -= 360;
     if (deltaYaw < -180) deltaYaw += 360;
@@ -191,7 +188,6 @@ void updateTorques() {
 
 // Function to send torque data via UDP
 void sendTorquesUDP() {
-  // Build JSON payload
   JsonDocument doc;
   doc["device"] = deviceId;
   doc["Torque_roll1"] = Torque_roll1;
@@ -202,12 +198,10 @@ void sendTorquesUDP() {
   char jsonBuffer[256];
   size_t len = serializeJson(doc, jsonBuffer);
 
-  // Send to gripper ESP32
-  udp.beginPacket(receiverESP32IP, udpPort);
+- udp.beginPacket(receiverESP32IP, udpPort);
   udp.write((uint8_t*)jsonBuffer, len);
   udp.endPacket();
 
-  // Send to computer
   udp.beginPacket(receiverComputerIP, udpPort);
   udp.write((uint8_t*)jsonBuffer, len);
   udp.endPacket();
@@ -215,7 +209,6 @@ void sendTorquesUDP() {
   Serial.println("Sent torque data to gripper and PC.");
 }
 
-// Setup function
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -225,19 +218,16 @@ void setup() {
   udp.begin(udpPort);
   Serial.println("UDP initialized");
 
-  // Configure the PWM that will control the servos
   ESP32PWM::allocateTimer(0);
   ESP32PWM::allocateTimer(1);
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
 
-  // Set a frequency to the servos
   servo_yaw.setPeriodHertz(50);
   servo_pitch.setPeriodHertz(50);
   servo_roll1.setPeriodHertz(50);
   servo_roll2.setPeriodHertz(50);
 
-  // Attach servos to their signal pins
   servo_yaw.attach(PIN_SIGNAL_YAW);
   servo_pitch.attach(PIN_SIGNAL_PITCH);
   servo_roll1.attach(PIN_SIGNAL_ROLL1);
@@ -254,11 +244,11 @@ void setup() {
   servo_roll2.write(90);
 }
 
-// Loop function
+// Modified Loop function
 void loop() {
-  receiveOrientationUDP();  // Receive RPY data from G4_Gri
-  moveServos();             // Apply orientation to servos
+  receiveOrientationUDP();  
+  moveServos();             
   updateTorques();          // Measure current-based torques
   sendTorquesUDP();         // Send torque values to gripper and PC
-  delay(50);                // Small delay for stability
+  delay(50);                
 }
