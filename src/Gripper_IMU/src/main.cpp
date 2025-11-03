@@ -22,8 +22,8 @@ int s1Status = HIGH;
 int s2Status = HIGH;
 
 // UDP settings
-IPAddress receiverESP32IP(192, 168, 1, 43); // IP of receiver ESP32
-IPAddress receiverComputerIP(192, 168, 1, 45); // IP of PC
+IPAddress receiverESP32IP(192, 168, 1, 33); // IP of receiver ESP32
+IPAddress receiverComputerIP(192, 168, 1, 55); // IP of PC
 const int udpPort = 12345;
 WiFiUDP udp;
 
