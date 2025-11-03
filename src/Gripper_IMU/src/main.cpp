@@ -101,7 +101,7 @@ void receiveTorquesUDP() {
       }
 
       const char* device = doc["device"];
-      if (strcmp(device, "G4_Servos") == 0) {
+      if (strcmp(device, "G3_Servos") == 0) {
         Torque_roll1 = doc["Torque_roll1"];
         Torque_roll2 = doc["Torque_roll2"];
         Torque_pitch = doc["Torque_pitch"];
