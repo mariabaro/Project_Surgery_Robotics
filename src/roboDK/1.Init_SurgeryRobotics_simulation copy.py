@@ -42,7 +42,7 @@ def initialize_robodk():
     needle_init = TxyzRxyz_2_Pose([0, 0, 0, 0, 0, 0])
     needle.setParent(gripper)
     needle.setPose(needle_init)
-    robot.MoveL(Init_target)
+    #robot.MoveL(Init_target)
     robot.setSpeed(50)
     return robot, base, gripper, needle
 
@@ -68,9 +68,11 @@ def read_data_UDP():
                 received_data = json.loads(data.decode())
                 device_id = received_data.get("device")
                 if device_id == "G3_Endo":
+                    
                     with data_lock:
                         Endowrist_rpy = received_data
                 elif device_id == "G3_Gri":
+                    
                     with data_lock:
                         Gripper_rpy = received_data
             except json.JSONDecodeError:
@@ -103,7 +105,7 @@ def move_robot(robot, gripper, needle, text_label):
             s3 = Endowrist_rpy.get("s3")
             s4 = Endowrist_rpy.get("s4")
             endo_roll, endo_pitch, endo_yaw = endowrist2base_orientation(e_roll, e_pitch, e_yaw)
-            #print(f"Endowrist: {endo_roll}, {endo_pitch}, {endo_yaw}")
+            print(f"Endowrist: {endo_roll}, {endo_pitch}, {endo_yaw}")
             # Move Endowrist
             endowrist_pose = robot.Pose()
             Xr, Yr, Zr, rr, pr, yr = Pose_2_TxyzRxyz(endowrist_pose)

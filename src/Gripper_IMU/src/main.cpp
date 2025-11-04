@@ -68,10 +68,10 @@ void sendOrientationUDP() {
   doc["yaw"] = Gri_yaw;
   doc["s1"] = s1Status;
   doc["s2"] = s2Status;
-
   char jsonBuffer[512];
-  serializeJson(doc, jsonBuffer);
-
+  serializeJson(doc, jsonBuffer, sizeof(jsonBuffer));
+  Serial.println(jsonBuffer);
+  
   // Send to ESP32 Servos
   udp.beginPacket(receiverESP32IP, udpPort);
   udp.write((const uint8_t*)jsonBuffer, strlen(jsonBuffer));

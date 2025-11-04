@@ -9,7 +9,7 @@ import json
 import os
 
 # Define the relative and absolute path to the RoboDK project file
-relative_path = "src/roboDK/SurgeryRobotics.rdk"
+relative_path = "Project_Surgery_Robotics/src/roboDK/SurgeryRobotics.rdk"
 absolute_path = os.path.abspath(relative_path)
 # Constants
 UDP_IP = "0.0.0.0"
@@ -49,7 +49,7 @@ def initialize_robodk(absolute_path):
     needle.setParent(gripper)
     needle.setPose(needle_init)
     robot.setSpeed(50)
-    robot.MoveL(Init_target)
+    #robot.MoveL(Init_target)
     return RDK, robot, base, gripper, needle
 
 # Transformation Endowrist to base

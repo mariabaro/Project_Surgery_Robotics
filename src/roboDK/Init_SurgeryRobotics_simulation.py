@@ -49,7 +49,7 @@ def initialize_robodk(absolute_path):
     needle.setParent(gripper)
     needle.setPose(needle_init)
     robot.setSpeed(50)
-    robot.MoveL(Init_target)
+    #robot.MoveL(Init_target)
     return RDK, robot, base, gripper, needle
 
 # Transformation Endowrist to base

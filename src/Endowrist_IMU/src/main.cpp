@@ -65,7 +65,7 @@ void sendOrientationUDP() {
 
   char jsonBuffer[512];
   serializeJson(doc, jsonBuffer);
-
+  Serial.println(jsonBuffer);
   udp.beginPacket(receiverComputerIP, udpPort);
   udp.write((const uint8_t*)jsonBuffer, strlen(jsonBuffer));
   udp.endPacket();
