@@ -13,7 +13,7 @@ const char *password = "rUBot_xx";
 
 // UDP settings
 IPAddress receiverESP32IP(192, 168, 1, 31);
-IPAddress receiverComputerIP(192, 168, 1, 55);
+IPAddress receiverComputerIP(192, 168, 1, 35);
 const int udpPort = 12345;
 WiFiUDP udp;
 

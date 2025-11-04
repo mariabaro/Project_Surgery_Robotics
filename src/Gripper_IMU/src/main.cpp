@@ -23,7 +23,7 @@ int s2Status = HIGH;
 
 // UDP settings
 IPAddress receiverESP32IP(192, 168, 1, 33); // IP of receiver ESP32
-IPAddress receiverComputerIP(192, 168, 1, 55); // IP of PC
+IPAddress receiverComputerIP(192, 168, 1, 35); // IP of PC
 const int udpPort = 12345;
 WiFiUDP udp;
 
@@ -130,7 +130,7 @@ void setup() {
 
   // Initialize IMU
   imu.Install();
-
+  
   connectToWiFi();
   udp.begin(udpPort);
   Serial.println("UDP initialized.");
@@ -145,5 +145,5 @@ void loop() {
   updateOrientation();    
   sendOrientationUDP();   
   receiveTorquesUDP();    // Receive torque data from servos via UDP
-  delay(10);
+  delay(10);
 }
